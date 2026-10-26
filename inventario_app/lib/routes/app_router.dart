@@ -14,9 +14,9 @@ class AppRoutes {
   static const String productoEditar = '/productos/:id/editar';
 }
 
-GoRouter createRouter() {
+GoRouter createRouter({String initialLocation = AppRoutes.dashboard}) {
   return GoRouter(
-    initialLocation: AppRoutes.dashboard,
+    initialLocation: initialLocation,
     debugLogDiagnostics: false,
     routes: [
       GoRoute(
