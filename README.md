@@ -1,4 +1,4 @@
-# ParcialII_moviles — Sistema de Gestion de Inventario
+# Parcial II moviles — Sistema de Gestion de Inventario
 
 Proyecto desarrollado como segundo parcial practico de Electiva Profesional I en la UCEVA. Consiste en una API REST propia con base de datos persistente y una aplicacion movil Flutter que la consume mediante Dio.
 
