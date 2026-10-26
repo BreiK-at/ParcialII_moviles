@@ -1,0 +1,25 @@
+{
+  "name": "inventario-api",
+  "version": "1.0.0",
+  "description": "API REST para el Sistema de Gestión de Inventario - Electiva Profesional I",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node tests/api.test.js"
+  },
+  "keywords": [
+    "inventory",
+    "api-rest",
+    "express",
+    "sqlite",
+    "flutter"
+  ],
+  "author": "Michael Stiven Vasco Cardenas",
+  "license": "MIT",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
