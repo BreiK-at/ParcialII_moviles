@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../models/producto.dart';
+import '../routes/app_router.dart';
 import '../services/producto_service.dart';
+import '../services/session_service.dart';
 import '../themes/app_theme.dart';
 import '../widgets/estado_widgets.dart';
 import '../widgets/producto_card.dart';
+
 
 class DashboardView extends StatefulWidget {
   const DashboardView({super.key});
@@ -18,11 +21,22 @@ class _DashboardViewState extends State<DashboardView> {
   InventarioStats? _stats;
   bool _cargando = true;
   String? _error;
+  String _nombreUsuario = '';
 
   @override
   void initState() {
     super.initState();
     _cargarEstadisticas();
+    _cargarNombre();
+  }
+
+  Future<void> _cargarNombre() async {
+    final datos = await SessionService.obtenerDatosUsuario();
+    if (mounted) {
+      setState(() {
+        _nombreUsuario = datos['nombre'] ?? '';
+      });
+    }
   }
 
   Future<void> _cargarEstadisticas() async {
@@ -95,11 +109,11 @@ class _DashboardViewState extends State<DashboardView> {
                               ),
                             ),
                             const SizedBox(width: 12),
-                            const Expanded(
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     'InventarioApp',
                                     style: TextStyle(
                                       color: Colors.white,
@@ -108,19 +122,35 @@ class _DashboardViewState extends State<DashboardView> {
                                       letterSpacing: 0.3,
                                     ),
                                   ),
-                                  Text(
-                                    'Gestion de Inventario',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 13,
+                                  if (_nombreUsuario.isNotEmpty)
+                                    Text(
+                                      'Hola, $_nombreUsuario',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                      ),
+                                    )
+                                  else
+                                    const Text(
+                                      'Gestion de Inventario',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 13,
+                                      ),
                                     ),
-                                  ),
                                 ],
                               ),
+                            ),
+                            IconButton(
+                              onPressed: () => context.go(AppRoutes.session),
+                              icon: const Icon(Icons.account_circle_outlined,
+                                  color: Colors.white, size: 28),
+                              tooltip: 'Mi sesion',
                             ),
                           ],
                         ),
                       ],
+
                     ),
                   ),
                 ),
@@ -199,6 +229,14 @@ class _DashboardViewState extends State<DashboardView> {
                     icono: Icons.add_box_outlined,
                     color: const Color(0xFF2E7D32),
                     onTap: () => context.go('/productos/nuevo'),
+                  ),
+                  const SizedBox(height: 10),
+                  _AccionCard(
+                    titulo: 'Mi sesion',
+                    subtitulo: 'Ver datos de cuenta y cerrar sesion',
+                    icono: Icons.manage_accounts_outlined,
+                    color: const Color(0xFF1565C0),
+                    onTap: () => context.go(AppRoutes.session),
                   ),
                   const SizedBox(height: 32),
                   Center(
