@@ -1,4 +1,4 @@
-# ParcialII_moviles — Sistema de Gestion de Inventario
+# Parcial II moviles — Sistema de Gestion de Inventario
 
 Proyecto desarrollado como segundo parcial practico de Electiva Profesional I en la UCEVA. Consiste en una API REST propia con base de datos persistente y una aplicacion movil Flutter que la consume mediante Dio.
 
@@ -23,13 +23,83 @@ La solucion integra dos proyectos independientes:
 | SQLite (node:sqlite) | Base de datos persistente |
 | dotenv | Variables de entorno |
 | cors | Control de acceso cruzado |
+| jsonwebtoken | Generacion y verificacion de tokens JWT |
+| bcryptjs | Hash de contrasenas |
 
 ### Frontend Flutter
 | Paquete | Uso |
 |---|---|
-| `dio` | Peticiones HTTP a la API |
-| `go_router` | Navegacion declarativa entre pantallas |
+| `dio` | Peticiones HTTP a la API con interceptores JWT |
+| `go_router` | Navegacion declarativa con redirect guard |
 | `flutter_dotenv` | URL base de la API desde `.env` |
+| `flutter_secure_storage` | Almacenamiento seguro del access_token |
+| `shared_preferences` | Almacenamiento de nombre y email del usuario |
+
+---
+
+## Autenticacion JWT
+
+### Flujo general
+
+```
+Flutter                        Backend
+  │                               │
+  │  POST /api/auth/login         │
+  │  { email, password }          │
+  │ ─────────────────────────── > │  Valida credenciales con bcrypt
+  │                               │  Genera token JWT (8h)
+  │  200 { access_token, usuario }│
+  │ < ─────────────────────────── │
+  │                               │
+  │  flutter_secure_storage       │
+  │  .write(key='access_token')   │
+  │                               │
+  │  GET /api/productos           │
+  │  Authorization: Bearer <tok>  │
+  │ ─────────────────────────── > │  verifyToken middleware
+  │                               │  Valida JWT, extrae payload
+  │  200 [...productos]           │
+  │ < ─────────────────────────── │
+  │                               │
+  │  GET /api/productos           │
+  │  (sin token)                  │
+  │ ─────────────────────────── > │
+  │  401 Acceso denegado          │
+  │ < ─────────────────────────── │
+```
+
+### Credenciales de prueba (usuario semilla)
+
+| Campo | Valor |
+|---|---|
+| Email | `admin@uceva.edu.co` |
+| Contrasena | `admin1234` |
+
+El usuario se crea automaticamente al iniciar el servidor si la tabla esta vacia.
+
+### Endpoints de autenticacion
+
+| Metodo | Ruta | Acceso | Descripcion |
+|---|---|---|---|
+| `POST` | `/api/auth/login` | Publico | Valida credenciales, retorna JWT |
+| `GET` | `/api/auth/me` | Protegido | Retorna datos del usuario autenticado |
+
+### Proteccion de rutas
+
+Todos los endpoints `/api/productos/*` requieren el header:
+```
+Authorization: Bearer <access_token>
+```
+
+Sin token valido, el backend responde `401 Unauthorized`.
+
+### Almacenamiento local en Flutter
+
+| Dato | Libreria | Razon |
+|---|---|---|
+| `access_token` | `flutter_secure_storage` | Dato sensible, cifrado en el dispositivo |
+| `nombre` del usuario | `shared_preferences` | Dato no sensible |
+| `email` del usuario | `shared_preferences` | Dato no sensible |
 
 ---
 
@@ -40,35 +110,42 @@ ParcialII_moviles/
 ├── backend/
 │   ├── src/
 │   │   ├── config/
-│   │   │   └── database.js       # Configuracion e inicializacion de SQLite
+│   │   │   └── database.js           # Configuracion e inicializacion de SQLite
 │   │   ├── controllers/
-│   │   │   └── productoController.js   # Logica de negocio y validaciones
+│   │   │   ├── authController.js     # Login y endpoint /me
+│   │   │   └── productoController.js # Logica de negocio y validaciones
+│   │   ├── middleware/
+│   │   │   └── authMiddleware.js     # Middleware verifyToken para rutas protegidas
 │   │   ├── models/
-│   │   │   └── productoModel.js  # Consultas a la base de datos
+│   │   │   ├── productoModel.js      # Consultas de productos
+│   │   │   └── usuarioModel.js       # Consultas de usuarios y seed inicial
 │   │   ├── routes/
-│   │   │   └── productoRoutes.js # Definicion de endpoints
-│   │   ├── app.js                # Configuracion de Express
-│   │   └── server.js             # Punto de entrada
+│   │   │   ├── authRoutes.js         # POST /login, GET /me
+│   │   │   └── productoRoutes.js     # Endpoints CRUD de productos
+│   │   ├── app.js                    # Configuracion de Express con JWT
+│   │   └── server.js                 # Punto de entrada con init de tablas
 │   ├── data/
-│   │   └── inventario.db         # Base de datos SQLite persistente
-│   ├── tests/
-│   │   └── api.test.js           # Pruebas de integracion del API
+│   │   └── inventario.db             # Base de datos SQLite persistente
 │   ├── .env.example
 │   └── package.json
 │
 └── inventario_app/
     └── lib/
         ├── config/
-        │   └── app_config.dart   # Configuracion y acceso a dotenv
+        │   └── app_config.dart       # Configuracion y acceso a dotenv
         ├── models/
-        │   └── producto.dart     # Modelos con fromJson/toJson/copyWith
+        │   └── producto.dart         # Modelos con fromJson/toJson/copyWith
         ├── routes/
-        │   └── app_router.dart   # Configuracion de go_router
+        │   └── app_router.dart       # go_router con redirect guard JWT
         ├── services/
-        │   └── producto_service.dart  # Peticiones HTTP con Dio
+        │   ├── auth_service.dart     # Login/logout con Dio
+        │   ├── session_service.dart  # Almacenamiento seguro de sesion
+        │   └── producto_service.dart # CRUD con interceptor Bearer token
         ├── themes/
-        │   └── app_theme.dart    # Tema global con Material 3
+        │   └── app_theme.dart        # Tema global con Material 3
         ├── views/
+        │   ├── login_view.dart       # Pantalla de inicio de sesion
+        │   ├── session_view.dart     # Informacion de sesion y logout
         │   ├── dashboard_view.dart
         │   ├── productos_list_view.dart
         │   ├── producto_detail_view.dart
@@ -101,9 +178,16 @@ ParcialII_moviles/
 
 Base URL local: `http://localhost:3000`
 
+### Autenticacion (publicos)
 | Metodo | Ruta | Funcionalidad |
 |---|---|---|
-| `GET` | `/api/health` | Verificar estado del servidor |
+| `GET` | `/api/health` | Estado del servidor |
+| `POST` | `/api/auth/login` | Autenticarse y obtener JWT |
+| `GET` | `/api/auth/me` | Datos del usuario autenticado (requiere JWT) |
+
+### Productos (protegidos — requieren JWT)
+| Metodo | Ruta | Funcionalidad |
+|---|---|---|
 | `GET` | `/api/productos` | Listar todos los productos |
 | `GET` | `/api/productos/stats` | Estadisticas del inventario |
 | `GET` | `/api/productos/:id` | Obtener detalle de un producto |
@@ -115,50 +199,25 @@ Base URL local: `http://localhost:3000`
 - `200 OK` — Consulta o actualizacion exitosa
 - `201 Created` — Producto creado
 - `400 Bad Request` — Parametro ID invalido
-- `404 Not Found` — Producto no encontrado
+- `401 Unauthorized` — Token ausente, invalido o expirado
+- `404 Not Found` — Recurso no encontrado
 - `409 Conflict` — Codigo de producto duplicado
 - `422 Unprocessable Entity` — Datos de entrada invalidos
 - `500 Internal Server Error` — Error interno del servidor
 
 ---
 
-## Ejemplo de respuesta JSON
-
-### GET /api/productos/1
-```json
-{
-  "id": 1,
-  "nombre": "Laptop Lenovo ThinkPad T14",
-  "codigo": "PRD-001",
-  "descripcion": "Procesador Ryzen 7, 16GB RAM, 512GB SSD PCIe NVMe",
-  "precio": 3500000,
-  "cantidad": 15,
-  "categoria": "Computadores",
-  "created_at": "2026-10-26T15:32:47.000Z",
-  "updated_at": "2026-10-26T15:32:47.000Z"
-}
-```
-
-### GET /api/productos/stats
-```json
-{
-  "total_productos": 12,
-  "total_unidades": 367,
-  "valor_total_inventario": 72345000
-}
-```
-
----
-
 ## Rutas implementadas en go_router
 
-| Ruta | Vista | Descripcion |
-|---|---|---|
-| `/` | `DashboardView` | Pantalla de inicio con estadisticas e indicadores |
-| `/productos` | `ProductosListView` | Listado completo con busqueda y filtrado |
-| `/productos/nuevo` | `ProductoFormView` | Formulario para crear un producto |
-| `/productos/:id` | `ProductoDetailView` | Detalle completo del producto seleccionado |
-| `/productos/:id/editar` | `ProductoFormView` | Formulario precargado para editar |
+| Ruta | Vista | Protegida | Descripcion |
+|---|---|---|---|
+| `/login` | `LoginView` | No | Pantalla de inicio de sesion |
+| `/` | `DashboardView` | Si | Inicio con estadisticas e indicadores |
+| `/sesion` | `SessionView` | Si | Info de sesion y boton de logout |
+| `/productos` | `ProductosListView` | Si | Listado completo con busqueda |
+| `/productos/nuevo` | `ProductoFormView` | Si | Formulario para crear producto |
+| `/productos/:id` | `ProductoDetailView` | Si | Detalle del producto |
+| `/productos/:id/editar` | `ProductoFormView` | Si | Formulario de edicion |
 
 ---
 
@@ -168,9 +227,11 @@ Base URL local: `http://localhost:3000`
 ```bash
 cd backend
 cp .env.example .env
+# Editar JWT_SECRET en .env con una clave segura
 npm install
 node src/server.js
 # Servidor disponible en http://localhost:3000
+# Usuario semilla: admin@uceva.edu.co / admin1234
 ```
 
 ### Flutter
@@ -183,35 +244,24 @@ flutter pub get
 flutter run
 ```
 
-### Pruebas backend
-```bash
-cd backend
-npm test
-```
-
-### Pruebas Flutter
-```bash
-cd inventario_app
-flutter test
-```
-
 ---
 
-## Criterios implementados
+## Criterios implementados (Taller JWT)
 
-- Cinco endpoints funcionales con validaciones y codigos HTTP correctos.
-- Persistencia real en SQLite. Los datos sobreviven reinicios del servidor.
-- 12 productos de prueba precargados al iniciar por primera vez.
-- CRUD completo desde Flutter con confirmacion de eliminacion.
-- Dashboard con indicadores calculados en tiempo real desde la API.
-- Manejo de estados de carga, error con boton de reintento y lista vacia.
-- Separacion estricta en capas: config, models, services, views, widgets, routes.
-- Navegacion con go_router y paso de objetos mediante `extra`.
-- Variables de entorno con `flutter_dotenv`.
-- Busqueda en tiempo real en la lista de productos.
+- Endpoint de login que valida credenciales y retorna un token JWT firmado.
+- Middleware `verifyToken` que rechaza con 401 peticiones sin token valido o expirado.
+- Todos los endpoints CRUD de productos protegidos con JWT.
+- Pantalla de login con validaciones y manejo de error de credenciales incorrectas.
+- Interceptor Dio que adjunta automaticamente el Bearer token en cada peticion.
+- `flutter_secure_storage` para almacenar el access_token de forma segura.
+- `shared_preferences` para nombre y email (datos no sensibles).
+- Redirect guard en go_router: sin sesion redirige a `/login`; con sesion redirige al dashboard desde `/login`.
+- Pantalla de sesion con nombre, email, estado de autenticacion, preview del token y boton de logout.
+- Logout que elimina todos los datos locales y redirige al login.
+- Persistencia de sesion: la app verifica la sesion al abrirse y no pide login si el token aun existe.
 - Sin credenciales ni secretos en el repositorio.
 
 ---
 
-**Estudiante:** Michael Stiven Vasco Cardenas — Codigo 230231047  
+**Estudiante:** Michael Stiven Vasco Cardenas — Codigo 230231047
 **Asignatura:** Electiva Profesional I — UCEVA
