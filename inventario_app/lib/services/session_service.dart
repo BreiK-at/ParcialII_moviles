@@ -2,8 +2,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 // Gestiona el almacenamiento local de sesion:
-//   - flutter_secure_storage para el access_token (dato sensible)
-//   - shared_preferences para nombre y email del usuario (datos no sensibles)
+//   - flutter_secure_storage para el access_token (dato sensible cifrado)
+//   - shared_preferences para datos de usuario y fallback
 class SessionService {
   static const _storage = FlutterSecureStorage();
   static const _keyToken = 'access_token';
@@ -16,15 +16,34 @@ class SessionService {
     required String nombre,
     required String email,
   }) async {
-    await _storage.write(key: _keyToken, value: token);
+    try {
+      await _storage
+          .write(key: _keyToken, value: token)
+          .timeout(const Duration(seconds: 1));
+    } catch (_) {
+      // Ignora error de llavero en entornos Linux sin daemon
+    }
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyNombre, nombre);
     await prefs.setString(_keyEmail, email);
+    await prefs.setString(_keyToken, token);
   }
 
   // Retorna el token almacenado o null si no existe
   static Future<String?> obtenerToken() async {
-    return _storage.read(key: _keyToken);
+    try {
+      final token = await _storage
+          .read(key: _keyToken)
+          .timeout(const Duration(seconds: 1), onTimeout: () => null);
+      if (token != null && token.isNotEmpty) return token;
+    } catch (_) {
+      // En caso de que el llavero de Linux este bloqueado o no disponible
+    }
+
+    // Fallback con SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_keyToken);
   }
 
   // Retorna nombre y email guardados en prefs
@@ -44,9 +63,15 @@ class SessionService {
 
   // Elimina todos los datos de sesion (logout)
   static Future<void> cerrarSesion() async {
-    await _storage.delete(key: _keyToken);
+    try {
+      await _storage
+          .delete(key: _keyToken)
+          .timeout(const Duration(seconds: 1));
+    } catch (_) {}
+
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyNombre);
     await prefs.remove(_keyEmail);
+    await prefs.remove(_keyToken);
   }
 }
