@@ -1,6 +1,8 @@
 const express = require('express');
 const cors = require('cors');
+const authRoutes = require('./routes/authRoutes');
 const productoRoutes = require('./routes/productoRoutes');
+const { verifyToken } = require('./middleware/authMiddleware');
 
 const app = express();
 
@@ -19,18 +21,22 @@ app.use((req, res, next) => {
   next();
 });
 
-// Endpoint de salud
+// Endpoint de salud — publico
 app.get('/api/health', (req, res) => {
   res.status(200).json({
     status: 'ok',
     servicio: 'API Gestion de Inventario',
-    version: '1.0.0',
+    version: '2.0.0',
+    autenticacion: 'JWT habilitado',
     timestamp: new Date().toISOString()
   });
 });
 
-// Montar rutas de negocio
-app.use('/api/productos', productoRoutes);
+// Rutas de autenticacion — publicas excepto /me
+app.use('/api/auth', authRoutes);
+
+// Rutas de productos — protegidas con JWT
+app.use('/api/productos', verifyToken, productoRoutes);
 
 // Manejador para rutas no encontradas
 app.use((req, res) => {
@@ -43,7 +49,7 @@ app.use((req, res) => {
 app.use((err, req, res, next) => {
   console.error('Error no controlado:', err);
   res.status(500).json({
-    error: 'Ocurrió un error inesperado en el servidor',
+    error: 'Ocurrio un error inesperado en el servidor',
     detalle: err.message
   });
 });
